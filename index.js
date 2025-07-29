@@ -6,6 +6,7 @@ const cors = require('cors');
 const DagscanProtocolStat = require('./models/dagscanProtocolStat');
 const DagscanPool = require('./models/dagscanPool');
 const DagscanTokenPrice = require('./models/dagscanTokenPrice');
+const DagscanPoolLatest = require('./models/dagscanPoolLatest');
 const ZealousSwapService = require('./services/zealousSwapService');
 
 // Create Express app
@@ -115,42 +116,37 @@ zealousRouter.get('/pools', asyncHandler(async (req, res) => {
 // sort on (defaults to `tvl`, a reasonable proxy for market cap). Sorting
 // direction is controlled via `order=asc|desc` (default `desc`).
 zealousRouter.get('/pools/latest', asyncHandler(async (req, res) => {
-  // Parse query params with defaults
+  // Read query params with defaults and validate sort field to prevent injection.
   const { limit = 100, skip = 0, sortField = 'tvl', order = 'desc' } = req.query;
-  // Build sort stage based on provided field and order
-  const sortStage = {};
-  // Only allow known sortable fields to prevent injection; default to tvl
   const allowedFields = ['tvl', 'volumeUSD', 'feesUSD', 'apr', 'updatedAt'];
   const field = allowedFields.includes(sortField) ? sortField : 'tvl';
-  sortStage[field] = order === 'asc' ? 1 : -1;
-
-  const pipeline = [
-    // Sort by updatedAt descending so that $group picks the most recent doc per pool
-    { $sort: { updatedAt: -1 } },
-    { $group: { _id: '$address', doc: { $first: '$$ROOT' } } },
-    { $replaceRoot: { newRoot: '$doc' } },
-    // Sort by chosen field for market cap ordering
-    { $sort: sortStage },
-    // Apply pagination
-    { $skip: parseInt(skip, 10) },
-    { $limit: parseInt(limit, 10) },
-    { $project: { _id: 0, __v: 0 } }
-  ];
-  // Use allowDiskUse to permit MongoDB to spill to disk when sorting large datasets
-  // Execute the aggregation with allowDiskUse enabled. Passing the option as
-  // the second parameter to aggregate ensures MongoDB opts in to external
-  // sorting, which prevents in‑memory sort limitations. See Mongoose docs
-  // (Aggregate.prototype.allowDiskUse() can be unreliable in some setups).
-  const latestByPool = await DagscanPool.aggregate(pipeline, { allowDiskUse: true });
-  res.json(latestByPool);
+  const sortOrder = order === 'asc' ? 1 : -1;
+  // Query the latest pool collection directly. Because there is exactly one
+  // document per address, this operation does not require a grouping
+  // aggregation and is therefore much more efficient. Pagination and sorting
+  // are applied using simple query options.
+  const docs = await DagscanPoolLatest.find()
+    .sort({ [field]: sortOrder })
+    .skip(parseInt(skip, 10))
+    .limit(parseInt(limit, 10));
+  // Convert Mongoose documents to plain objects and remove internal fields
+  const json = docs.map(doc => {
+    const obj = doc.toObject();
+    delete obj.__v;
+    return obj;
+  });
+  res.json(json);
 }));
 
 // GET /api/zealous/pools/:address/latest - get the latest snapshot for a single pool
 zealousRouter.get('/pools/:address/latest', asyncHandler(async (req, res) => {
   const { address } = req.params;
-  const doc = await DagscanPool.findOne({ address }).sort({ updatedAt: -1 });
+  // Query the latest pool collection directly for this address
+  const doc = await DagscanPoolLatest.findOne({ address });
   if (!doc) return res.status(404).json({ error: 'Pool not found' });
-  res.json(doc);
+  const obj = doc.toObject();
+  delete obj.__v;
+  res.json(obj);
 }));
 
 // GET /api/zealous/tokens/:tokenAddress/price - get price history for a token

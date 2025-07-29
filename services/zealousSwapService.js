@@ -2,6 +2,8 @@ const axios = require('axios');
 const DagscanProtocolStat = require('../models/dagscanProtocolStat');
 const DagscanPool = require('../models/dagscanPool');
 const DagscanTokenPrice = require('../models/dagscanTokenPrice');
+const DagscanPoolLatest = require('../models/dagscanPoolLatest');
+const DagscanTokenPriceLatest = require('../models/dagscanTokenPriceLatest');
 
 /**
  * This service encapsulates the logic for pulling data from Zealous Swap's
@@ -126,11 +128,57 @@ class ZealousSwapService {
         discountedFeeRate: pool.discountedFeeRate
       });
       await poolDoc.save();
+
+      // Upsert into the latest pool collection. This ensures we only store
+      // one document per pool address with the most recent snapshot. We
+      // replace the entire document rather than selectively updating fields
+      // to keep the schema consistent.
+      await DagscanPoolLatest.findOneAndUpdate(
+        { address: pool.address },
+        {
+          address: pool.address,
+          token0: pool.token0,
+          token1: pool.token1,
+          token0Volume: pool.token0Volume,
+          token1Volume: pool.token1Volume,
+          tvl: pool.tvl,
+          volumeUSD: pool.volumeUSD,
+          token0Fees: pool.token0Fees,
+          token1Fees: pool.token1Fees,
+          feesUSD: pool.feesUSD,
+          token0Reserves: pool.token0Reserves,
+          token1Reserves: pool.token1Reserves,
+          apr: pool.apr,
+          hasUSDValues: pool.hasUSDValues,
+          updatedAt: new Date(pool.updatedAt),
+          hasActiveFarm: pool.hasActiveFarm,
+          farmApr: pool.farmApr,
+          regularFeeRate: pool.regularFeeRate,
+          discountedFeeRate: pool.discountedFeeRate,
+          createdAt: new Date()
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
       // Derive and save token prices
       const prices = this.deriveTokenPrices(pool);
       for (const price of prices) {
         const priceDoc = new DagscanTokenPrice(price);
         await priceDoc.save();
+
+        // Upsert latest price for each token
+        await DagscanTokenPriceLatest.findOneAndUpdate(
+          { tokenAddress: price.tokenAddress.toLowerCase() },
+          {
+            tokenAddress: price.tokenAddress.toLowerCase(),
+            symbol: price.symbol,
+            name: price.name,
+            priceUSD: price.priceUSD,
+            poolAddress: price.poolAddress,
+            timestamp: price.timestamp,
+            createdAt: new Date()
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
       }
     }
   }
