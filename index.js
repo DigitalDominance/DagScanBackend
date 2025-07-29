@@ -47,15 +47,26 @@ function asyncHandler(fn) {
 
 // ===================== ROUTES =====================
 
-// GET /api/protocol/stats - return the latest protocol snapshot
-app.get('/api/protocol/stats', asyncHandler(async (req, res) => {
+//
+// To make the API endpoints specific to the Zealous data source, we wrap
+// them inside a dedicated Router and mount it under the `/api/zealous`
+// prefix. This ensures that when additional DEX backends are introduced
+// they can live alongside Zealous without route collisions. All Zealous
+// endpoints mirror the previously exposed paths but are now namespaced
+// to `api/zealous/…`. For example, the latest protocol stats are
+// available at `/api/zealous/protocol/stats` rather than `/api/protocol/stats`.
+
+const zealousRouter = express.Router();
+
+// GET /api/zealous/protocol/stats - return the latest protocol snapshot
+zealousRouter.get('/protocol/stats', asyncHandler(async (req, res) => {
   const latest = await DagscanProtocolStat.findOne().sort({ updatedAt: -1 });
   if (!latest) return res.status(404).json({ error: 'No protocol stats found' });
   res.json(latest);
 }));
 
-// GET /api/historical/volume/daily - return daily volume differences
-app.get('/api/historical/volume/daily', asyncHandler(async (req, res) => {
+// GET /api/zealous/historical/volume/daily - return daily volume differences
+zealousRouter.get('/historical/volume/daily', asyncHandler(async (req, res) => {
   const dailyVolumes = await DagscanProtocolStat.aggregate([
     {
       $group: {
@@ -76,14 +87,14 @@ app.get('/api/historical/volume/daily', asyncHandler(async (req, res) => {
   res.json(dailyVolumes);
 }));
 
-// GET /api/historical/volume - return all protocol stats sorted ascending
-app.get('/api/historical/volume', asyncHandler(async (req, res) => {
+// GET /api/zealous/historical/volume - return all protocol stats sorted ascending
+zealousRouter.get('/historical/volume', asyncHandler(async (req, res) => {
   const records = await DagscanProtocolStat.find().sort({ updatedAt: 1 });
   res.json(records);
 }));
 
-// GET /api/pools - list pools. Supports optional address filter and pagination
-app.get('/api/pools', asyncHandler(async (req, res) => {
+// GET /api/zealous/pools - list pools. Supports optional address filter and pagination
+zealousRouter.get('/pools', asyncHandler(async (req, res) => {
   const { address, limit = 100, skip = 0 } = req.query;
   const query = {};
   if (address) query.address = address;
@@ -94,8 +105,8 @@ app.get('/api/pools', asyncHandler(async (req, res) => {
   res.json(docs);
 }));
 
-// GET /api/pools/latest - return the most recent snapshot per pool address
-app.get('/api/pools/latest', asyncHandler(async (req, res) => {
+// GET /api/zealous/pools/latest - return the most recent snapshot per pool address
+zealousRouter.get('/pools/latest', asyncHandler(async (req, res) => {
   const latestByPool = await DagscanPool.aggregate([
     { $sort: { updatedAt: -1 } },
     { $group: { _id: '$address', doc: { $first: '$$ROOT' } } },
@@ -105,16 +116,16 @@ app.get('/api/pools/latest', asyncHandler(async (req, res) => {
   res.json(latestByPool);
 }));
 
-// GET /api/pools/:address/latest - get the latest snapshot for a single pool
-app.get('/api/pools/:address/latest', asyncHandler(async (req, res) => {
+// GET /api/zealous/pools/:address/latest - get the latest snapshot for a single pool
+zealousRouter.get('/pools/:address/latest', asyncHandler(async (req, res) => {
   const { address } = req.params;
   const doc = await DagscanPool.findOne({ address }).sort({ updatedAt: -1 });
   if (!doc) return res.status(404).json({ error: 'Pool not found' });
   res.json(doc);
 }));
 
-// GET /api/tokens/:tokenAddress/price - get price history for a token
-app.get('/api/tokens/:tokenAddress/price', asyncHandler(async (req, res) => {
+// GET /api/zealous/tokens/:tokenAddress/price - get price history for a token
+zealousRouter.get('/tokens/:tokenAddress/price', asyncHandler(async (req, res) => {
   const { tokenAddress } = req.params;
   const { limit = 1000, skip = 0 } = req.query;
   const docs = await DagscanTokenPrice.find({ tokenAddress: tokenAddress.toLowerCase() })
@@ -124,8 +135,8 @@ app.get('/api/tokens/:tokenAddress/price', asyncHandler(async (req, res) => {
   res.json(docs);
 }));
 
-// GET /api/tokens/:tokenAddress/price/daily - daily aggregated price for token
-app.get('/api/tokens/:tokenAddress/price/daily', asyncHandler(async (req, res) => {
+// GET /api/zealous/tokens/:tokenAddress/price/daily - daily aggregated price for token
+zealousRouter.get('/tokens/:tokenAddress/price/daily', asyncHandler(async (req, res) => {
   const { tokenAddress } = req.params;
   const dailyPrices = await DagscanTokenPrice.aggregate([
     { $match: { tokenAddress: tokenAddress.toLowerCase() } },
@@ -155,6 +166,9 @@ app.get('/api/tokens/:tokenAddress/price/daily', asyncHandler(async (req, res) =
   ]);
   res.json(dailyPrices);
 }));
+
+// Mount the Zealous router under /api/zealous
+app.use('/api/zealous', zealousRouter);
 
 // 404 handler
 app.use((req, res) => {
