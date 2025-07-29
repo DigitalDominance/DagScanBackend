@@ -137,8 +137,11 @@ zealousRouter.get('/pools/latest', asyncHandler(async (req, res) => {
     { $project: { _id: 0, __v: 0 } }
   ];
   // Use allowDiskUse to permit MongoDB to spill to disk when sorting large datasets
-  const agg = DagscanPool.aggregate(pipeline).allowDiskUse(true);
-  const latestByPool = await agg.exec();
+  // Execute the aggregation with allowDiskUse enabled. Passing the option as
+  // the second parameter to aggregate ensures MongoDB opts in to external
+  // sorting, which prevents in‑memory sort limitations. See Mongoose docs
+  // (Aggregate.prototype.allowDiskUse() can be unreliable in some setups).
+  const latestByPool = await DagscanPool.aggregate(pipeline, { allowDiskUse: true });
   res.json(latestByPool);
 }));
 
