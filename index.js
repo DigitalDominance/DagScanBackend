@@ -192,6 +192,44 @@ zealousRouter.get('/tokens/:tokenAddress/price/daily', asyncHandler(async (req, 
   res.json(dailyPrices);
 }));
 
+// GET /api/zealous/tokens/:tokenAddress/current - compute the current token price
+//
+// This endpoint derives the current USD price for a token using the latest
+// snapshot of pools that contain the token. It selects the pool with the
+// highest TVL to maximize liquidity and then calculates the price based on
+// half the TVL divided by the token's reserves. If no pool contains the
+// token, a 404 is returned.
+zealousRouter.get('/tokens/:tokenAddress/current', asyncHandler(async (req, res) => {
+  const tokenAddress = req.params.tokenAddress.toLowerCase();
+  // Find the pool with the highest TVL that contains this token as token0 or token1
+  const pool = await DagscanPoolLatest.findOne({
+    $or: [
+      { 'token0.address': tokenAddress },
+      { 'token1.address': tokenAddress }
+    ]
+  }).sort({ tvl: -1 });
+  if (!pool) return res.status(404).json({ error: 'Token not found in any pool' });
+  let priceUSD;
+  let symbol;
+  // Compute price depending on whether the token is token0 or token1
+  if (pool.token0.address.toLowerCase() === tokenAddress) {
+    const reserves = Number(pool.token0Reserves) / Math.pow(10, pool.token0.decimals);
+    priceUSD = reserves > 0 ? (pool.tvl / 2) / reserves : 0;
+    symbol = pool.token0.symbol;
+  } else {
+    const reserves = Number(pool.token1Reserves) / Math.pow(10, pool.token1.decimals);
+    priceUSD = reserves > 0 ? (pool.tvl / 2) / reserves : 0;
+    symbol = pool.token1.symbol;
+  }
+  res.json({
+    tokenAddress: tokenAddress,
+    symbol: symbol,
+    priceUSD: priceUSD,
+    poolAddress: pool.address,
+    updatedAt: pool.updatedAt
+  });
+}));
+
 // Mount the Zealous router under /api/zealous
 app.use('/api/zealous', zealousRouter);
 
