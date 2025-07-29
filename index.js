@@ -106,13 +106,39 @@ zealousRouter.get('/pools', asyncHandler(async (req, res) => {
 }));
 
 // GET /api/zealous/pools/latest - return the most recent snapshot per pool address
+//
+// This endpoint previously returned all pools in memory, which caused MongoDB
+// to exceed its 32MB in‑memory sort limit. To avoid out‑of‑memory errors and
+// support large datasets, this implementation uses the `allowDiskUse` option
+// and adds pagination and custom sorting. Clients can request a slice of the
+// result set using `limit` and `skip` query parameters, and specify a field to
+// sort on (defaults to `tvl`, a reasonable proxy for market cap). Sorting
+// direction is controlled via `order=asc|desc` (default `desc`).
 zealousRouter.get('/pools/latest', asyncHandler(async (req, res) => {
-  const latestByPool = await DagscanPool.aggregate([
+  // Parse query params with defaults
+  const { limit = 100, skip = 0, sortField = 'tvl', order = 'desc' } = req.query;
+  // Build sort stage based on provided field and order
+  const sortStage = {};
+  // Only allow known sortable fields to prevent injection; default to tvl
+  const allowedFields = ['tvl', 'volumeUSD', 'feesUSD', 'apr', 'updatedAt'];
+  const field = allowedFields.includes(sortField) ? sortField : 'tvl';
+  sortStage[field] = order === 'asc' ? 1 : -1;
+
+  const pipeline = [
+    // Sort by updatedAt descending so that $group picks the most recent doc per pool
     { $sort: { updatedAt: -1 } },
     { $group: { _id: '$address', doc: { $first: '$$ROOT' } } },
     { $replaceRoot: { newRoot: '$doc' } },
+    // Sort by chosen field for market cap ordering
+    { $sort: sortStage },
+    // Apply pagination
+    { $skip: parseInt(skip, 10) },
+    { $limit: parseInt(limit, 10) },
     { $project: { _id: 0, __v: 0 } }
-  ]);
+  ];
+  // Use allowDiskUse to permit MongoDB to spill to disk when sorting large datasets
+  const agg = DagscanPool.aggregate(pipeline).allowDiskUse(true);
+  const latestByPool = await agg.exec();
   res.json(latestByPool);
 }));
 
