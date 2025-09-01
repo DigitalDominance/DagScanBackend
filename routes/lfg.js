@@ -77,6 +77,7 @@ router.post('/:tokenAddress/snapshot', async (req, res) => {
   }
 });
 
+// path style
 router.get('/:tokenAddress/history', async (req, res) => {
   try {
     const tokenAddress = String(req.params.tokenAddress || '').toLowerCase();
@@ -93,6 +94,7 @@ router.get('/:tokenAddress/history', async (req, res) => {
   }
 });
 
+// query style fallback
 router.get('/history', async (req, res) => {
   try {
     const tokenAddress = String(req.query.tokenAddress || req.query.address || '').toLowerCase();

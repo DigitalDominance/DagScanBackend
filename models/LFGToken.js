@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 const LFGTokenSchema = new mongoose.Schema({
   tokenAddress: { type: String, required: true },
+  deployerAddress: { type: String },
   ticker: { type: String, index: true },
   name: { type: String, index: true },
   description: { type: String },
-  deployerAddress: { type: String },
   totalSupply: { type: Number },
   image: { type: String },
   colorHex: { type: String },
@@ -23,7 +23,8 @@ const LFGTokenSchema = new mongoose.Schema({
   priceChange: { type: Object },
   updatedAtRemote: { type: Date },
   lastSyncedAt: { type: Date },
-}, { timestamps: true, collection: 'lfg_tokens', autoIndex: true });
-LFGTokenSchema.pre('save', function(next){ if(this.tokenAddress) this.tokenAddress=this.tokenAddress.toLowerCase(); next(); });
+}, { timestamps: true, autoIndex: true, collection: 'lfg_tokens' });
+LFGTokenSchema.pre('save', function(next){ if(this.tokenAddress) this.tokenAddress=this.tokenAddress.toLowerCase(); if(this.deployerAddress) this.deployerAddress=this.deployerAddress.toLowerCase(); next(); });
 LFGTokenSchema.index({ tokenAddress: 1 }, { unique: true, partialFilterExpression: { tokenAddress: { $type: 'string' } } });
+LFGTokenSchema.index({ ticker: 1 }); LFGTokenSchema.index({ name: 1 });
 module.exports = mongoose.models.LFGToken || mongoose.model('LFGToken', LFGTokenSchema);

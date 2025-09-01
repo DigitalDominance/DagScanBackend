@@ -1,3 +1,4 @@
+const LFGTokenPrice = require('./models/LFGTokenPrice');
 const express = require("express")
 const mongoose = require("mongoose")
 const cron = require("node-cron")
@@ -232,6 +233,37 @@ zealousRouter.get(
 )
 
 // Mount the Zealous router under /api/zealous
+app.get('/api/lfg/_health', (req,res)=>res.json({ok:true}));
+app.use('/api/lfg', lfgRouter);
+app.use('/lfg', lfgRouter);
+app.get('/api/lfg/history', async (req, res) => {
+  try {
+    const tokenAddress = String(req.query.tokenAddress || req.query.address || '').toLowerCase();
+    if (!tokenAddress) return res.status(400).json({ error: 'tokenAddress query required' });
+    const { from, to, limit = 500, order = 'asc' } = req.query;
+    const q = { tokenAddress };
+    if (from || to) { q.snappedAt = {}; if (from) q.snappedAt.$gte = new Date(from); if (to) q.snappedAt.$lte = new Date(to); }
+    const docs = await LFGTokenPrice.find(q).sort({ snappedAt: order === 'desc' ? -1 : 1 }).limit(Math.min(5000, Number(limit || 500)));
+    const points = docs.map(d => ({ t: d.snappedAt.getTime(), price: d.price, marketCap: d.marketCap, v1h: d.volume1h, v4h: d.volume4h, v12h: d.volume12h, v1d: d.volume1d, v3d: d.volume3d, v7d: d.volume7d }));
+    return res.json({ success: true, tokenAddress, count: points.length, points });
+  } catch (e) {
+    return res.status(500).json({ error: 'Internal error', details: String(e?.message || e) });
+  }
+});
+app.get('/lfg/history', async (req, res) => {
+  try {
+    const tokenAddress = String(req.query.tokenAddress || req.query.address || '').toLowerCase();
+    if (!tokenAddress) return res.status(400).json({ error: 'tokenAddress query required' });
+    const { from, to, limit = 500, order = 'asc' } = req.query;
+    const q = { tokenAddress };
+    if (from || to) { q.snappedAt = {}; if (from) q.snappedAt.$gte = new Date(from); if (to) q.snappedAt.$lte = new Date(to); }
+    const docs = await LFGTokenPrice.find(q).sort({ snappedAt: order === 'desc' ? -1 : 1 }).limit(Math.min(5000, Number(limit || 500)));
+    const points = docs.map(d => ({ t: d.snappedAt.getTime(), price: d.price, marketCap: d.marketCap, v1h: d.volume1h, v4h: d.volume4h, v12h: d.volume12h, v1d: d.volume1d, v3d: d.volume3d, v7d: d.volume7d }));
+    return res.json({ success: true, tokenAddress, count: points.length, points });
+  } catch (e) {
+    return res.status(500).json({ error: 'Internal error', details: String(e?.message || e) });
+  }
+});
 app.use("/api/zealous", zealousRouter)
 
 // 404 handler
@@ -252,4 +284,3 @@ startLFGTop100Cron();
 app.listen(port, () => {
   console.log(`Zealous backend listening on port ${port}`)
 })
-app.use('/lfg', lfgRouter);
