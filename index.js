@@ -252,3 +252,4 @@ startLFGTop100Cron();
 app.listen(port, () => {
   console.log(`Zealous backend listening on port ${port}`)
 })
+app.use('/lfg', lfgRouter);
