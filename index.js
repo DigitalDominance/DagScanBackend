@@ -10,6 +10,8 @@ const DagscanPoolLatest = require("./models/dagscanPoolLatest")
 const DagscanTokenPriceLatest = require("./models/dagscanTokenPriceLatest")
 const DagscanToken = require("./models/dagscanToken")
 const ZealousSwapService = require("./services/zealousSwapService")
+const lfgRouter = require('./routes/lfg');
+const { startLFGTop100Cron } = require('./jobs/lfgTop100Cron');
 
 // Create Express app
 const app = express()
@@ -239,12 +241,14 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
+app.use('/api/lfg', lfgRouter);
   console.error(err)
   res.status(500).json({ error: "Internal server error" })
 })
 
 // Start server
 const port = process.env.PORT || 3000
+startLFGTop100Cron();
 app.listen(port, () => {
   console.log(`Zealous backend listening on port ${port}`)
 })
