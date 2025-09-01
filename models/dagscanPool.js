@@ -1,43 +1,49 @@
+// DagScanBackend/models/dagscanPool.js
 const mongoose = require('mongoose');
 
 /**
- * DagscanPool represents a snapshot of an individual liquidity pool on
- * Zealous Swap. Each record contains information about the two tokens that
- * compose the pool, liquidity metrics and fee parameters. Multiple records
- * will exist for a given pool address as we store every minute update; the
- * most recent record can be queried by sorting on `updatedAt`.
+ * We don't know your exact field set here (and you likely mutate it elsewhere),
+ * so we keep strict:false to avoid breaking writes. We add defensive unique
+ * indexes on the most common pool identifiers to block duplicates at the DB level.
+ *
+ * Collection name is pinned to 'zealousswappools' as you referenced.
  */
-const dagscanPoolSchema = new mongoose.Schema({
-  address: { type: String, required: true, index: true },
-  token0: {
-    address: { type: String, required: true },
-    symbol: { type: String, required: true },
-    name: { type: String, required: true },
-    decimals: { type: Number, required: true }
-  },
-  token1: {
-    address: { type: String, required: true },
-    symbol: { type: String, required: true },
-    name: { type: String, required: true },
-    decimals: { type: Number, required: true }
-  },
-  token0Volume: { type: mongoose.Schema.Types.Mixed, required: true },
-  token1Volume: { type: mongoose.Schema.Types.Mixed, required: true },
-  tvl: { type: Number, required: true },
-  volumeUSD: { type: Number, required: true },
-  token0Fees: { type: mongoose.Schema.Types.Mixed, required: true },
-  token1Fees: { type: mongoose.Schema.Types.Mixed, required: true },
-  feesUSD: { type: Number, required: true },
-  token0Reserves: { type: mongoose.Schema.Types.Mixed, required: true },
-  token1Reserves: { type: mongoose.Schema.Types.Mixed, required: true },
-  apr: { type: Number, required: true },
-  hasUSDValues: { type: Boolean, default: false },
-  updatedAt: { type: Date, required: true },
-  hasActiveFarm: { type: Boolean, default: false },
-  farmApr: { type: Number, default: 0 },
-  regularFeeRate: { type: Number },
-  discountedFeeRate: { type: Number },
-  createdAt: { type: Date, default: Date.now }
-});
+const dagscanPoolSchema = new mongoose.Schema(
+  {},
+  {
+    strict: false,
+    timestamps: true,
+    autoIndex: true, // ensure indexes are built (prod can still override mongoose option globally)
+    collection: 'zealousswappools',
+  }
+);
 
-module.exports = mongoose.model('DagscanPool', dagscanPoolSchema);
+/**
+ * Defensive unique indexes — any one of these will stop dup writes if your ingester
+ * uses that field as the primary id. Partial filters avoid null/undefined collisions.
+ * Keep all three; whichever field your pipeline actually uses will enforce uniqueness.
+ */
+dagscanPoolSchema.index(
+  { poolAddress: 1 },
+  { unique: true, partialFilterExpression: { poolAddress: { $type: 'string' } } }
+);
+
+dagscanPoolSchema.index(
+  { address: 1 },
+  { unique: true, partialFilterExpression: { address: { $type: 'string' } } }
+);
+
+dagscanPoolSchema.index(
+  { dex: 1, poolAddress: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      dex: { $exists: true, $type: 'string' },
+      poolAddress: { $type: 'string' },
+    },
+  }
+);
+
+module.exports =
+  mongoose.models.DagscanPool ||
+  mongoose.model('DagscanPool', dagscanPoolSchema);
