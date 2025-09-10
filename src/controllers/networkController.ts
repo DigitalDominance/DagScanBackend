@@ -1585,8 +1585,8 @@ class NetWorkController {
                 isContract: transaction.to.is_contract,
                 isVerified: transaction.to.is_verified
             },
-            value: transaction.value,
-            gasPrice: transaction.gas_price,
+            value: transaction.value / 1e18,
+            gasPrice: transaction.gas_price / 1e18,
             timestamp: transaction.timestamp,
             status: transaction.status === "ok" ? "success" : "failed",
             type: ["KAS Transfer", "Token Transfer", "Contract Call"][transaction.type],
