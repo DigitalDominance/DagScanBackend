@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
+
 const LFGTokenSchema = new mongoose.Schema({
   tokenAddress: { type: String, required: true },
   deployerAddress: { type: String },
@@ -27,4 +28,4 @@ const LFGTokenSchema = new mongoose.Schema({
 LFGTokenSchema.pre('save', function(next){ if(this.tokenAddress) this.tokenAddress=this.tokenAddress.toLowerCase(); if(this.deployerAddress) this.deployerAddress=this.deployerAddress.toLowerCase(); next(); });
 LFGTokenSchema.index({ tokenAddress: 1 }, { unique: true, partialFilterExpression: { tokenAddress: { $type: 'string' } } });
 LFGTokenSchema.index({ ticker: 1 }); LFGTokenSchema.index({ name: 1 });
-module.exports = mongoose.models.LFGToken || mongoose.model('LFGToken', LFGTokenSchema);
+export default mongoose.models.LFGToken || mongoose.model('LFGToken', LFGTokenSchema);

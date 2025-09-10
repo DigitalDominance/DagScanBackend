@@ -6,10 +6,8 @@ const LFGTokenPrice = require('../models/LFGTokenPrice');
 const LFG_BASE = 'https://api.dev-lfg.kaspa.com/tokens/search';
 const DEFAULT_SORT = 'Market Cap (High to Low)';
 
-const doFetch = async (url) => {
-  if (global.fetch) return fetch(url);
-  const { default: fetchPoly } = await import('node-fetch');
-  return fetchPoly(url);
+const doFetch = async (url: any) => {
+  return fetch(url);
 };
 
 const minuteBucket = (d = new Date()) =>
@@ -35,7 +33,7 @@ async function fetchTopTokens(pagesToScan = 8, cap = 100) {
         if (out.length >= cap) break;
       }
       if (out.length >= cap || !payload?.hasMore) break;
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[LFG_TOP100_CRON] fetch error:', e?.message || e);
       break;
     }
@@ -43,11 +41,11 @@ async function fetchTopTokens(pagesToScan = 8, cap = 100) {
   return out.slice(0, cap);
 }
 
-async function snapshotTop(tokens) {
+async function snapshotTop(tokens: any) {
   if (!tokens.length) return;
   const snapAt = minuteBucket(new Date());
 
-  const tokenOps = tokens.map((it) => ({
+  const tokenOps = tokens.map((it: any) => ({
     updateOne: {
       filter: { tokenAddress: String(it.tokenAddress || '').toLowerCase() },
       update: {
@@ -80,7 +78,7 @@ async function snapshotTop(tokens) {
     },
   }));
 
-  const priceOps = tokens.map((it) => {
+  const priceOps = tokens.map((it: any) => {
     const tokenAddress = String(it.tokenAddress || '').toLowerCase();
     const vol = it.volume || {};
     const chg = it.priceChange || {};
@@ -133,7 +131,7 @@ function startLFGTop100Cron() {
       } else {
         console.log('[LFG_TOP100_CRON] no tokens fetched');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('[LFG_TOP100_CRON] error', e?.message || e);
     } finally {
       running = false;
@@ -142,4 +140,4 @@ function startLFGTop100Cron() {
   console.log('[LFG_TOP100_CRON] scheduled (*/1 * * * *) top 100');
 }
 
-module.exports = { startLFGTop100Cron };
+export default startLFGTop100Cron;

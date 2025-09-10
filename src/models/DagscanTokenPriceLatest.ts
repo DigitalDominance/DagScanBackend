@@ -1,4 +1,4 @@
-const mongoose = require("mongoose")
+import mongoose from "mongoose";
 
 /**
  * DagscanTokenPriceLatest stores the most recent price for each token. This
@@ -19,4 +19,4 @@ const dagscanTokenPriceLatestSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 })
 
-module.exports = mongoose.model("DagscanTokenPriceLatest", dagscanTokenPriceLatestSchema)
+export default mongoose.model("DagscanTokenPriceLatest", dagscanTokenPriceLatestSchema)

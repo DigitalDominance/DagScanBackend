@@ -1,4 +1,4 @@
-const mongoose = require("mongoose")
+import mongoose from "mongoose";
 
 /**
  * DagscanToken stores token information fetched from the tokens API.
@@ -16,4 +16,4 @@ const dagscanTokenSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 })
 
-module.exports = mongoose.model("DagscanToken", dagscanTokenSchema)
+export default mongoose.model("DagscanToken", dagscanTokenSchema)
