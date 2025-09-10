@@ -1535,6 +1535,82 @@ class NetWorkController {
       res.status(500).json({ error: "Internal server error" });      
     }
   }
+
+  public getLatestBlocksAPI = async (req: Request, res: Response) => {
+    const { count, network } = req.body;    
+    try {
+        const config = this.switchNetwork(network);
+
+        const blocks = (await axios.get(`${config.baseApiUrl}/main-page/blocks`)).data;
+
+        // res.status(200).json({ blocks });
+        const customBlocks = blocks.map((block: any) => ({
+            number: block.height,
+            hash: block.hash,
+            timestamp: new Date(block.timestamp).getTime(),
+            transactions: block.transactions_count || 0,
+            gasUsed: block.gas_used || "0",
+            gasLimit: block.gas_limit || '0',
+            miner: block.miner.hash,
+        }));
+
+        res.status(200).json({ blocks: customBlocks });
+    } catch (error) {
+        console.error("Failed to fetch latest blocks:", error)
+        const blocks = Array.from({ length: count }, (_, i) => ({
+            number: MOCK_DATA.latestBlockNumber - i,
+            hash: `0x${Math.random().toString(16).substr(2, 64)}`,
+            timestamp: Date.now() - i * 12000,
+            transactions: Math.floor(Math.random() * 50),
+            gasUsed: "21000",
+            gasLimit: "30000000",
+            miner: "0x1234567890123456789012345678901234567890",
+        }))        
+        res.status(200).json({ blocks });
+    }
+  }
+
+  public getLatestTransactionsAPI = async (req: Request, res: Response) => {
+    const { count, network } = req.body;        
+    try {
+        const config = this.switchNetwork(network);
+
+        const transactions = (await axios.get(`${config.baseApiUrl}/main-page/transactions`)).data;
+
+        const customTransactions = transactions.map((transaction: any) => ({
+            hash: transaction.hash,
+            from: transaction.from.hash,
+            to: transaction.to.hash,
+            toInfo: {
+                isContract: transaction.to.is_contract,
+                isVerified: transaction.to.is_verified
+            },
+            value: transaction.value,
+            gasPrice: transaction.gas_price,
+            timestamp: transaction.timestamp,
+            status: transaction.status === "ok" ? "success" : "failed",
+            type: ["KAS Transfer", "Token Transfer", "Contract Call"][transaction.type],
+            input: transaction.raw_input
+        }))
+        res.status(200).json({ transactions: customTransactions });
+    } catch (error) {
+        console.error("Failed to fetch latest transactions:", error)
+        const transactions =  Array.from({ length: count }, () => ({
+            hash: `0x${Math.random().toString(16).substr(2, 64)}`,
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x0987654321098765432109876543210987654321",
+            toInfo: { isContract: false, isVerified: false },
+            value: (Math.random() * 10).toFixed(4),
+            gasPrice: (20 + Math.random() * 50).toFixed(2),
+            timestamp: Date.now() - Math.random() * 3600000,
+            status: Math.random() > 0.1 ? "success" : "failed",
+            type: ["KAS Transfer", "Token Transfer", "Contract Call"][Math.floor(Math.random() * 3)],
+            input: "0x",
+        }))     
+        
+        res.status(200).json({ transactions });
+    }
+  }
 }
 
 export default new NetWorkController();

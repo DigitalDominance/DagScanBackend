@@ -17,4 +17,7 @@ networkRouter.post('/token/transfers', networkController.getTokenTransfersAPI);
 networkRouter.post('/stats', networkController.getStatsAPI);
 networkRouter.post('/stats/charts/transactions', networkController.getStatsTransactionsAPI);
 
+networkRouter.post('/main-page/blocks', networkController.getLatestBlocksAPI);
+networkRouter.post('/main-page/transactions', networkController.getLatestTransactionsAPI);
+
 export default networkRouter;
