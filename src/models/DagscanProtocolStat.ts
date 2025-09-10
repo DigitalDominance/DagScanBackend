@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
+
 
 /**
  * DagscanProtocolStat is used to record snapshots of the Zealous Swap protocol
@@ -25,4 +26,4 @@ const dagscanProtocolStatSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('DagscanProtocolStat', dagscanProtocolStatSchema);
+export default mongoose.model('DagscanProtocolStat', dagscanProtocolStatSchema);

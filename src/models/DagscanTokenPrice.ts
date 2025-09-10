@@ -1,4 +1,4 @@
-const mongoose = require("mongoose")
+import mongoose from "mongoose";
 
 /**
  * DagscanTokenPrice stores derived price points for individual tokens. Each
@@ -15,4 +15,4 @@ const dagscanTokenPriceSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 })
 
-module.exports = mongoose.model("DagscanTokenPrice", dagscanTokenPriceSchema)
+export default mongoose.model("DagscanTokenPrice", dagscanTokenPriceSchema)

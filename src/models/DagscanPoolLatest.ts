@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
+
 
 /**
  * DagscanPoolLatest stores the most recent snapshot for each liquidity pool on
@@ -43,4 +44,4 @@ const dagscanPoolLatestSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('DagscanPoolLatest', dagscanPoolLatestSchema);
+export default mongoose.model('DagscanPoolLatest', dagscanPoolLatestSchema);

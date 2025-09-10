@@ -1,10 +1,10 @@
-const axios = require("axios")
-const DagscanProtocolStat = require("../models/dagscanProtocolStat")
-const DagscanPool = require("../models/dagscanPool")
-const DagscanTokenPrice = require("../models/dagscanTokenPrice")
-const DagscanPoolLatest = require("../models/dagscanPoolLatest")
-const DagscanTokenPriceLatest = require("../models/dagscanTokenPriceLatest")
-const DagscanToken = require("../models/dagscanToken")
+import axios from 'axios'
+import DagscanToken from '../models/DagscanToken';
+import DagscanTokenPriceLatest from '../models/DagscanTokenPriceLatest';
+import DagscanTokenPrice from '../models/DagscanTokenPrice';
+import DagscanProtocolStat from '../models/DagscanProtocolStat';
+import DagscanPool from '../models/DagscanPool';
+import DagscanPoolLatest from '../models/DagscanPoolLatest';
 
 /**
  * This service encapsulates the logic for pulling data from Zealous Swap's
@@ -12,7 +12,10 @@ const DagscanToken = require("../models/dagscanToken")
  * API as the source of truth for token data and prices.
  */
 class ZealousSwapService {
-  constructor(options = {}) {
+  private poolsApiUrl = ''
+  private tokensApiUrl = ''
+  private pricesApiUrl = ''
+  constructor(options: { poolsApiUrl?: string; tokensApiUrl?: string; pricesApiUrl?: string } = {}) {
     this.poolsApiUrl = options.poolsApiUrl || "https://api.zealousswap.com/v1/pools"
     this.tokensApiUrl = options.tokensApiUrl || "https://api.zealousswap.com/v1/tokens"
     this.pricesApiUrl = options.pricesApiUrl || "https://api.zealousswap.com/v1/prices"
@@ -64,7 +67,7 @@ class ZealousSwapService {
    * Persist tokens data from the tokens API into MongoDB.
    * @param {Object} tokensData The JSON object returned from fetchTokensData().
    */
-  async persistTokensData(tokensData) {
+  async persistTokensData(tokensData: any) {
     if (!tokensData || !tokensData.tokens || !Array.isArray(tokensData.tokens)) {
       throw new Error("Malformed response from Zealous tokens API")
     }
@@ -123,7 +126,7 @@ class ZealousSwapService {
    * This ensures we only track volume data for verified tokens.
    * @param {Object} poolsData The JSON object returned from fetchPoolsData().
    */
-  async persistPoolsData(poolsData) {
+  async persistPoolsData(poolsData: any) {
     if (!poolsData || typeof poolsData !== "object" || !poolsData.protocol || !poolsData.pools) {
       throw new Error("Malformed response from Zealous pools API")
     }
@@ -145,57 +148,57 @@ class ZealousSwapService {
     // Save pool snapshots only for pools containing tracked tokens
     const poolEntries = Object.entries(poolsData.pools)
     for (const [addr, pool] of poolEntries) {
-      const token0Address = pool.token0.address.toLowerCase()
-      const token1Address = pool.token1.address.toLowerCase()
+      const token0Address = (pool as any).token0.address.toLowerCase()
+      const token1Address = (pool as any).token1.address.toLowerCase()
 
       // Only process pools that contain at least one tracked token
       if (trackedAddresses.has(token0Address) || trackedAddresses.has(token1Address)) {
         const poolDoc = new DagscanPool({
-          address: pool.address,
-          token0: pool.token0,
-          token1: pool.token1,
-          token0Volume: pool.token0Volume,
-          token1Volume: pool.token1Volume,
-          tvl: pool.tvl,
-          volumeUSD: pool.volumeUSD,
-          token0Fees: pool.token0Fees,
-          token1Fees: pool.token1Fees,
-          feesUSD: pool.feesUSD,
-          token0Reserves: pool.token0Reserves,
-          token1Reserves: pool.token1Reserves,
-          apr: pool.apr,
-          hasUSDValues: pool.hasUSDValues,
-          updatedAt: new Date(pool.updatedAt),
-          hasActiveFarm: pool.hasActiveFarm,
-          farmApr: pool.farmApr,
-          regularFeeRate: pool.regularFeeRate,
-          discountedFeeRate: pool.discountedFeeRate,
+          address: (pool as any).address,
+          token0: (pool as any).token0,
+          token1: (pool as any).token1,
+          token0Volume: (pool as any).token0Volume,
+          token1Volume: (pool as any).token1Volume,
+          tvl: (pool as any).tvl,
+          volumeUSD: (pool as any).volumeUSD,
+          token0Fees: (pool as any).token0Fees,
+          token1Fees: (pool as any).token1Fees,
+          feesUSD: (pool as any).feesUSD,
+          token0Reserves: (pool as any).token0Reserves,
+          token1Reserves: (pool as any).token1Reserves,
+          apr: (pool as any).apr,
+          hasUSDValues: (pool as any).hasUSDValues,
+          updatedAt: new Date((pool as any).updatedAt),
+          hasActiveFarm: (pool as any).hasActiveFarm,
+          farmApr: (pool as any).farmApr,
+          regularFeeRate: (pool as any).regularFeeRate,
+          discountedFeeRate: (pool as any).discountedFeeRate,
         })
         await poolDoc.save()
 
         // Upsert into the latest pool collection
         await DagscanPoolLatest.findOneAndUpdate(
-          { address: pool.address },
+          { address: (pool as any).address },
           {
-            address: pool.address,
-            token0: pool.token0,
-            token1: pool.token1,
-            token0Volume: pool.token0Volume,
-            token1Volume: pool.token1Volume,
-            tvl: pool.tvl,
-            volumeUSD: pool.volumeUSD,
-            token0Fees: pool.token0Fees,
-            token1Fees: pool.token1Fees,
-            feesUSD: pool.feesUSD,
-            token0Reserves: pool.token0Reserves,
-            token1Reserves: pool.token1Reserves,
-            apr: pool.apr,
-            hasUSDValues: pool.hasUSDValues,
-            updatedAt: new Date(pool.updatedAt),
-            hasActiveFarm: pool.hasActiveFarm,
-            farmApr: pool.farmApr,
-            regularFeeRate: pool.regularFeeRate,
-            discountedFeeRate: pool.discountedFeeRate,
+            address: (pool as any).address,
+            token0: (pool as any).token0,
+            token1: (pool as any).token1,
+            token0Volume: (pool as any).token0Volume,
+            token1Volume: (pool as any).token1Volume,
+            tvl: (pool as any).tvl,
+            volumeUSD: (pool as any).volumeUSD,
+            token0Fees: (pool as any).token0Fees,
+            token1Fees: (pool as any).token1Fees,
+            feesUSD: (pool as any).feesUSD,
+            token0Reserves: (pool as any).token0Reserves,
+            token1Reserves: (pool as any).token1Reserves,
+            apr: (pool as any).apr,
+            hasUSDValues: (pool as any).hasUSDValues,
+            updatedAt: new Date((pool as any).updatedAt),
+            hasActiveFarm: (pool as any).hasActiveFarm,
+            farmApr: (pool as any).farmApr,
+            regularFeeRate: (pool as any).regularFeeRate,
+            discountedFeeRate: (pool as any).discountedFeeRate,
             createdAt: new Date(),
           },
           { upsert: true, new: true, setDefaultsOnInsert: true },
@@ -230,4 +233,4 @@ class ZealousSwapService {
   }
 }
 
-module.exports = ZealousSwapService
+export default ZealousSwapService;

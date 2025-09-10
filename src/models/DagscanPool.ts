@@ -1,5 +1,6 @@
 // DagScanBackend/models/dagscanPool.js
-const mongoose = require('mongoose');
+
+import mongoose from "mongoose";
 
 /**
  * Keep schema open (strict:false) to avoid breaking existing writers.
@@ -38,6 +39,6 @@ dagscanPoolSchema.index(
   }
 );
 
-module.exports =
+export default
   mongoose.models.DagscanPool ||
   mongoose.model('DagscanPool', dagscanPoolSchema);
