@@ -110,6 +110,7 @@ zealousRouter.get(
   "/tokens",
   asyncHandler(async (req: any, res: any) => {
     const { limit = 100, skip = 0 } = req.query
+    console.log('Zealous Router Tokens', limit, skip)
     const docs = await DagscanToken.find().sort({ rank: 1 }).skip(Number.parseInt(skip)).limit(Number.parseInt(limit))
     res.json(docs)
   }),
