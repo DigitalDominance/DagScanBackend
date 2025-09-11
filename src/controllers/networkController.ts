@@ -1541,10 +1541,10 @@ class NetWorkController {
     try {
         const config = this.switchNetwork(network);
 
-        const blocks = (await axios.get(`${config.baseApiUrl}/main-page/blocks`)).data;
+        const blocks = (await axios.get(`${config.baseApiUrl}/blocks?type=block`)).data.items;
 
         // res.status(200).json({ blocks });
-        const customBlocks = blocks.map((block: any) => ({
+        const customBlocks = blocks.slice(0, count).map((block: any) => ({
             number: block.height,
             hash: block.hash,
             timestamp: new Date(block.timestamp).getTime(),
@@ -1575,9 +1575,9 @@ class NetWorkController {
     try {
         const config = this.switchNetwork(network);
 
-        const transactions = (await axios.get(`${config.baseApiUrl}/main-page/transactions`)).data;
+        const transactions = (await axios.get(`${config.baseApiUrl}/transactions?filter=validated`)).data.items;        
 
-        const customTransactions = transactions.map((transaction: any) => ({
+        const customTransactions = transactions.slice(0, count).map((transaction: any) => ({
             hash: transaction.hash,
             from: transaction.from.hash,
             to: transaction.to.hash,
