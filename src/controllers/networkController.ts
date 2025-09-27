@@ -102,7 +102,7 @@ class NetWorkController {
 //   private chainId: number
   private currentRpcIndex = 0
   private useMockData = false
-  public baseApiUrl = "https://explorer.kasplex.org/api/v2"
+  public baseApiUrl = "https://api-explorer.kasplex.org/api/v2"
 
   constructor() {
     // this.rpcUrls = [];
@@ -119,14 +119,14 @@ class NetWorkController {
               "https://evmrpc.kasplex.org/",
             ],
             explorerApiUrls: [
-              "https://explorer.testnet.kasplextest.xyz/api/v2",
+              "https://api-explorer.kasplex.org/api/v2",
               "https:/explorer.kasplex.org/api",
               "https://explorer.kasplex.org/v1",
               "https://explorer.kasplex.org/v1",
               "https://explorer.kasplex.org/api/v2",
             ],
             chainId: 167012,
-            baseApiUrl: "https://explorer.kasplex.org/api/v2",
+            baseApiUrl: "https://api-explorer.kasplex.org/api/v2",
           };
       } else {
         return {
