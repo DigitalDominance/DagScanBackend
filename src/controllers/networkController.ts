@@ -102,7 +102,7 @@ class NetWorkController {
 //   private chainId: number
   private currentRpcIndex = 0
   private useMockData = false
-  public baseApiUrl = "https://frontend.kasplextest.xyz/api/v2"
+  public baseApiUrl = "https://explorer.kasplex.org/api/v2"
 
   constructor() {
     // this.rpcUrls = [];
@@ -115,19 +115,18 @@ class NetWorkController {
       if (network === "kasplex") {
         return {
             rpcUrls: [
-              "https://rpc.kasplextest.xyz/",
-              "https://kasplex-testnet.rpc.thirdweb.com/",
-              "https://testnet-rpc.kasplex.org/",
+              "https://evmrpc.kasplex.org/",
+              "https://evmrpc.kasplex.org/",
             ],
             explorerApiUrls: [
               "https://explorer.testnet.kasplextest.xyz/api/v2",
-              "https://explorer-api.kasplextest.xyz/api",
-              "https://api.kasplextest.xyz/v1",
-              "https://testnet-api.kasplex.org/v1",
-              "https://kasplex-testnet-api.blockscout.com/api/v2",
+              "https:/explorer.kasplex.org/api",
+              "https://explorer.kasplex.org/v1",
+              "https://explorer.kasplex.org/v1",
+              "https://explorer.kasplex.org/api/v2",
             ],
             chainId: 167012,
-            baseApiUrl: "https://explorer.testnet.kasplextest.xyz/api/v2",
+            baseApiUrl: "https://explorer.kasplex.org/api/v2",
           };
       } else {
         return {
