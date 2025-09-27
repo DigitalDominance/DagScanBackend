@@ -5,7 +5,7 @@ const router = Router();
 // const LFGToken = require('../models/LFGToken');
 // const LFGTokenPrice = require('../models/LFGTokenPrice');
 
-const LFG_BASE = 'https://api.dev-lfg.kaspa.com/tokens/search';
+const LFG_BASE = 'https://api.lfg.kaspa.com/tokens/search';
 const DEFAULT_SORT = 'Market Cap (High to Low)';
 const doFetch = async (url: any) => { if (typeof global.fetch === 'function') return fetch(url); const { default: fetchPoly } = await import('node-fetch'); return fetchPoly(url); };
 const minuteBucket = (d = new Date()) => new Date(Math.floor(d.getTime() / 60000) * 60000);
