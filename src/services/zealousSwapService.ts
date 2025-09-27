@@ -16,9 +16,9 @@ class ZealousSwapService {
   private tokensApiUrl = ''
   private pricesApiUrl = ''
   constructor(options: { poolsApiUrl?: string; tokensApiUrl?: string; pricesApiUrl?: string } = {}) {
-    this.poolsApiUrl = options.poolsApiUrl || "https://api.zealousswap.com/v1/pools"
-    this.tokensApiUrl = options.tokensApiUrl || "https://api.zealousswap.com/v1/tokens"
-    this.pricesApiUrl = options.pricesApiUrl || "https://api.zealousswap.com/v1/prices"
+    this.poolsApiUrl = options.poolsApiUrl || "https://kasplex.zealousswap.com/v1/pools"
+    this.tokensApiUrl = options.tokensApiUrl || "https://kasplex.zealousswap.com/v1/tokens"
+    this.pricesApiUrl = options.pricesApiUrl || "https://kasplex.zealousswap.com/v1/prices"
   }
 
   /**
