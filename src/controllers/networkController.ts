@@ -1501,6 +1501,56 @@ class NetWorkController {
     try {
       const { network } = req.body;
 
+      // Normalize network string for easier comparison
+      const netStr = typeof network === 'string' ? network.toLowerCase() : '';
+
+      // If requesting stats for the LFG Kaspa platform, fetch from its API and convert KAS values to USD
+      if (netStr.includes('lfg')) {
+        // Fetch stats directly from the LFG API (returns values in KAS)
+        const lfgResp = await axios.get('https://api.lfg.kaspa.com/stats');
+        const lfgStats = lfgResp.data;
+        try {
+          // Fetch the current KAS price in USD. The endpoint returns { price: number }
+          const priceResp = await axios.get('https://api.kaspa.org/info/price?stringOnly=false');
+          const kasPrice = Number(priceResp.data?.price ?? 0);
+          if (kasPrice && lfgStats && typeof lfgStats === 'object') {
+            const statsData = (lfgStats as any).data;
+            if (statsData) {
+              // Convert total TVL and each breakdown entry
+              if (statsData.tvl && typeof statsData.tvl.total === 'number') {
+                statsData.tvl.total = statsData.tvl.total * kasPrice;
+              }
+              if (statsData.tvl && statsData.tvl.breakdown && typeof statsData.tvl.breakdown === 'object') {
+                for (const key of Object.keys(statsData.tvl.breakdown)) {
+                  const val = statsData.tvl.breakdown[key];
+                  if (typeof val === 'number') {
+                    statsData.tvl.breakdown[key] = val * kasPrice;
+                  }
+                }
+              }
+              // Convert trade volumes (daily and other periods) across all categories
+              if (statsData.tradeVolumes && typeof statsData.tradeVolumes === 'object') {
+                for (const category of Object.keys(statsData.tradeVolumes)) {
+                  const vols = statsData.tradeVolumes[category];
+                  if (vols && typeof vols === 'object') {
+                    for (const period of Object.keys(vols)) {
+                      const volVal = vols[period];
+                      if (typeof volVal === 'number') {
+                        vols[period] = volVal * kasPrice;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // If price fetch fails, log and return original KAS-denominated stats
+          console.warn('Failed to fetch or convert KAS price:', e);
+        }
+        return res.status(200).json({ stats: lfgStats });
+      }
+
       console.log('Network: ', network)
 
       const config = this.switchNetwork(network);
