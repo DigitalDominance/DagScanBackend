@@ -55,124 +55,185 @@ class ZealousSwapService {
       throw new Error("Malformed response from Zealous tokens API")
     }
     const timestamp = new Date()
-    for (const token of tokensData.tokens) {
-      await DagscanToken.findOneAndUpdate(
-        { address: token.address.toLowerCase() },
-        {
-          address: token.address.toLowerCase(),
-          decimals: token.decimals,
-          name: token.name,
-          symbol: token.symbol,
-          logoURI: token.logoURI,
-          verified: token.verified,
-          rank: token.rank,
-          updatedAt: timestamp,
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      )
 
-      const priceDoc = new DagscanTokenPrice({
-        tokenAddress: token.address.toLowerCase(),
-        symbol: token.symbol,
-        name: token.name,
-        logoURI: token.logoURI,
-        priceUSD: token.price,
-        timestamp: timestamp,
-      })
-      await priceDoc.save()
+    /*
+     * Some tokens returned by the Zealous API may be missing optional fields
+     * such as price, logoURI or rank. Mongoose will throw validation errors
+     * if required fields are undefined. To make the importer more resilient,
+     * ensure that all required fields have sensible defaults before writing
+     * to the database. Tokens without a price are skipped entirely, as a
+     * missing price makes little sense in the context of a price history
+     * document. Tokens with missing decimals, name or symbol will also be
+     * ignored rather than causing the entire sync to fail.
+     */
+    for (const rawToken of tokensData.tokens) {
+      try {
+        // Normalise and validate essential fields
+        const address = typeof rawToken.address === 'string' ? rawToken.address.toLowerCase() : null
+        const decimals = typeof rawToken.decimals === 'number' ? rawToken.decimals : null
+        const name = typeof rawToken.name === 'string' ? rawToken.name : null
+        const symbol = typeof rawToken.symbol === 'string' ? rawToken.symbol : null
+        // Price may legitimately be 0, so only treat undefined/null as missing
+        const price = rawToken.price !== undefined && rawToken.price !== null ? Number(rawToken.price) : null
+        const rank = typeof rawToken.rank === 'number' ? rawToken.rank : null
+        // logoURI may be empty string; that's acceptable. default to empty string if missing
+        const logoURI = typeof rawToken.logoURI === 'string' ? rawToken.logoURI : ''
+        const verified = Boolean(rawToken.verified)
 
-      await DagscanTokenPriceLatest.findOneAndUpdate(
-        { tokenAddress: token.address.toLowerCase() },
-        {
-          tokenAddress: token.address.toLowerCase(),
-          symbol: token.symbol,
-          name: token.name,
-          logoURI: token.logoURI,
-          priceUSD: token.price,
-          verified: token.verified,
-          rank: token.rank,
-          decimals: token.decimals,
-          timestamp: timestamp,
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      )
+        if (!address || decimals === null || !name || !symbol) {
+          // Skip invalid token definitions
+          console.warn(`Skipping token with missing required fields: ${JSON.stringify(rawToken)}`)
+          continue
+        }
+
+        // Upsert basic token metadata. Even if price is missing we still
+        // maintain a record in DagscanToken so pools referencing it can be
+        // persisted.
+        await DagscanToken.findOneAndUpdate(
+          { address },
+          {
+            address,
+            decimals,
+            name,
+            symbol,
+            logoURI,
+            verified,
+            // if rank is missing set it to a high number to push it down the list
+            rank: rank !== null ? rank : 1e9,
+            updatedAt: timestamp,
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        )
+
+        // Only persist price documents if a price is available
+        if (price !== null) {
+          const priceDoc = new DagscanTokenPrice({
+            tokenAddress: address,
+            symbol,
+            name,
+            logoURI,
+            priceUSD: price,
+            timestamp: timestamp,
+          })
+          await priceDoc.save()
+
+          await DagscanTokenPriceLatest.findOneAndUpdate(
+            { tokenAddress: address },
+            {
+              tokenAddress: address,
+              symbol,
+              name,
+              logoURI,
+              priceUSD: price,
+              verified,
+              rank: rank !== null ? rank : 1e9,
+              decimals,
+              timestamp: timestamp,
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true },
+          )
+        }
+      } catch (err) {
+        // Log and continue on individual token errors to avoid aborting the entire sync
+        console.error(`Failed to process token ${JSON.stringify(rawToken)}:`, err)
+      }
     }
   }
 
   /** Persist pools + protocol stats into MongoDB (tracked tokens only). */
   async persistPoolsData(poolsData: any) {
-    if (!poolsData || typeof poolsData !== "object" || !poolsData.protocol || !poolsData.pools) {
-      throw new Error("Malformed response from Zealous pools API")
+    if (!poolsData || typeof poolsData !== 'object' || !poolsData.protocol || !poolsData.pools) {
+      throw new Error('Malformed response from Zealous pools API')
     }
 
-    const trackedTokens = await DagscanToken.find({}, { address: 1 })
-    const trackedAddresses = new Set(trackedTokens.map((t) => t.address.toLowerCase()))
+    // Build a set of tracked token addresses. If there are no tokens yet, an
+    // empty set will be used. This ensures that pool snapshots can still be
+    // recorded for tracked tokens without aborting due to undefined results.
+    const trackedTokens = await DagscanToken.find({}, { address: 1 }).lean()
+    const trackedAddresses = new Set(trackedTokens.map((t) => String(t.address).toLowerCase()))
 
-    // ✅ Protocol snapshot (TVL, volume, poolCount, updatedAt)
-    const protocol = poolsData.protocol
+    // Persist protocol snapshot (TVL, volume, poolCount, updatedAt). Use
+    // sensible defaults and type coercions to avoid validation errors if the
+    // API returns unexpected values.
+    const protocol = poolsData.protocol || {}
     const protocolStat = new DagscanProtocolStat({
-      totalTVL: protocol.totalTVL,
-      totalVolumeUSD: protocol.totalVolumeUSD,
-      poolCount: protocol.poolCount,
-      updatedAt: new Date(protocol.updatedAt),
+      totalTVL: Number(protocol.totalTVL ?? 0),
+      totalVolumeUSD: Number(protocol.totalVolumeUSD ?? 0),
+      poolCount: Number(protocol.poolCount ?? 0),
+      updatedAt: protocol.updatedAt ? new Date(protocol.updatedAt) : new Date(),
     })
-    await protocolStat.save()
+    await protocolStat.save().catch((err) => {
+      console.error('Failed to save protocol stats:', err)
+    })
 
-    // Pools (only those involving tracked tokens)
-    const poolEntries = Object.entries(poolsData.pools)
-    for (const [addr, pool] of poolEntries) {
-      const token0Address = (pool as any).token0.address.toLowerCase()
-      const token1Address = (pool as any).token1.address.toLowerCase()
-      if (trackedAddresses.has(token0Address) || trackedAddresses.has(token1Address)) {
-        const poolDoc = new DagscanPool({
+    // Process individual pools. Only persist pools that involve at least one
+    // tracked token. Coerce numeric fields into numbers and provide
+    // fallbacks for missing values to satisfy the DagscanPoolLatest schema.
+    const poolEntries = Object.entries(poolsData.pools || {})
+    for (const [, pool] of poolEntries) {
+      try {
+        const token0 = (pool as any).token0 || {}
+        const token1 = (pool as any).token1 || {}
+        const token0Address = String(token0.address || '').toLowerCase()
+        const token1Address = String(token1.address || '').toLowerCase()
+        if (!trackedAddresses.has(token0Address) && !trackedAddresses.has(token1Address)) {
+          continue
+        }
+        // Construct a plain object containing all the fields expected by the
+        // DagscanPoolLatest schema. Fields that may be returned as strings
+        // or undefined are coerced into numbers, or given a default value
+        // where appropriate.
+        const poolPayload: any = {
           address: (pool as any).address,
-          token0: (pool as any).token0,
-          token1: (pool as any).token1,
-          token0Volume: (pool as any).token0Volume,
-          token1Volume: (pool as any).token1Volume,
-          tvl: (pool as any).tvl,
-          volumeUSD: (pool as any).volumeUSD,
-          token0Fees: (pool as any).token0Fees,
-          token1Fees: (pool as any).token1Fees,
-          feesUSD: (pool as any).feesUSD,
-          token0Reserves: (pool as any).token0Reserves,
-          token1Reserves: (pool as any).token1Reserves,
-          apr: (pool as any).apr,
-          hasUSDValues: (pool as any).hasUSDValues,
-          updatedAt: new Date((pool as any).updatedAt),
-          hasActiveFarm: (pool as any).hasActiveFarm,
-          farmApr: (pool as any).farmApr,
+          token0: {
+            address: token0Address,
+            symbol: token0.symbol || '',
+            name: token0.name || '',
+            decimals: Number(token0.decimals ?? 0),
+          },
+          token1: {
+            address: token1Address,
+            symbol: token1.symbol || '',
+            name: token1.name || '',
+            decimals: Number(token1.decimals ?? 0),
+          },
+          token0Volume: (pool as any).token0Volume ?? 0,
+          token1Volume: (pool as any).token1Volume ?? 0,
+          tvl: Number((pool as any).tvl ?? 0),
+          volumeUSD: Number((pool as any).volumeUSD ?? 0),
+          token0Fees: (pool as any).token0Fees ?? 0,
+          token1Fees: (pool as any).token1Fees ?? 0,
+          feesUSD: Number((pool as any).feesUSD ?? 0),
+          token0Reserves: (pool as any).token0Reserves ?? 0,
+          token1Reserves: (pool as any).token1Reserves ?? 0,
+          apr: Number((pool as any).apr ?? 0),
+          hasUSDValues: Boolean((pool as any).hasUSDValues),
+          updatedAt: (pool as any).updatedAt ? new Date((pool as any).updatedAt) : new Date(),
+          hasActiveFarm: Boolean((pool as any).hasActiveFarm),
+          farmApr: Number((pool as any).farmApr ?? 0),
           regularFeeRate: (pool as any).regularFeeRate,
           discountedFeeRate: (pool as any).discountedFeeRate,
-        })
-        await poolDoc.save()
+        }
 
+        // Save historical snapshot
+        const poolDoc = new DagscanPool(poolPayload)
+        await poolDoc.save().catch((err) => {
+          console.error(`Failed to save pool snapshot for ${poolPayload.address}:`, err)
+        })
+
+        // Upsert latest snapshot
         await DagscanPoolLatest.findOneAndUpdate(
-          { address: (pool as any).address },
+          { address: poolPayload.address },
           {
-            address: (pool as any).address,
-            token0: (pool as any).token0,
-            token1: (pool as any).token1,
-            token0Volume: (pool as any).token0Volume,
-            token1Volume: (pool as any).token1Volume,
-            tvl: (pool as any).tvl,
-            volumeUSD: (pool as any).volumeUSD,
-            token0Fees: (pool as any).token0Fees,
-            token1Fees: (pool as any).token1Fees,
-            feesUSD: (pool as any).feesUSD,
-            token0Reserves: (pool as any).token0Reserves,
-            token1Reserves: (pool as any).token1Reserves,
-            apr: (pool as any).apr,
-            hasUSDValues: (pool as any).hasUSDValues,
-            updatedAt: new Date((pool as any).updatedAt),
-            hasActiveFarm: (pool as any).hasActiveFarm,
-            farmApr: (pool as any).farmApr,
-            regularFeeRate: (pool as any).regularFeeRate,
-            discountedFeeRate: (pool as any).discountedFeeRate,
+            ...poolPayload,
             createdAt: new Date(),
           },
           { upsert: true, new: true, setDefaultsOnInsert: true },
-        )
+        ).catch((err) => {
+          console.error(`Failed to upsert pool latest for ${poolPayload.address}:`, err)
+        })
+      } catch (err) {
+        console.error('Error processing pool data:', err)
       }
     }
   }
