@@ -133,7 +133,7 @@ class ZealousSwapService {
             { upsert: true, new: true, setDefaultsOnInsert: true },
           )
         }
-      } catch (err) {
+      } catch (err: unknown) {
         // Log and continue on individual token errors to avoid aborting the entire sync
         console.error(`Failed to process token ${JSON.stringify(rawToken)}:`, err)
       }
@@ -162,7 +162,7 @@ class ZealousSwapService {
       poolCount: Number(protocol.poolCount ?? 0),
       updatedAt: protocol.updatedAt ? new Date(protocol.updatedAt) : new Date(),
     })
-    await protocolStat.save().catch((err) => {
+        await protocolStat.save().catch((err: unknown) => {
       console.error('Failed to save protocol stats:', err)
     })
 
@@ -217,7 +217,7 @@ class ZealousSwapService {
 
         // Save historical snapshot
         const poolDoc = new DagscanPool(poolPayload)
-        await poolDoc.save().catch((err) => {
+        await poolDoc.save().catch((err: unknown) => {
           console.error(`Failed to save pool snapshot for ${poolPayload.address}:`, err)
         })
 
@@ -229,10 +229,10 @@ class ZealousSwapService {
             createdAt: new Date(),
           },
           { upsert: true, new: true, setDefaultsOnInsert: true },
-        ).catch((err) => {
+        ).catch((err: unknown) => {
           console.error(`Failed to upsert pool latest for ${poolPayload.address}:`, err)
         })
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Error processing pool data:', err)
       }
     }
@@ -250,7 +250,7 @@ class ZealousSwapService {
       await this.persistPoolsData(poolsData)
       console.log("Pools sync completed")
       console.log("Zealous sync completed successfully")
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Zealous sync failed", err)
     }
   }
