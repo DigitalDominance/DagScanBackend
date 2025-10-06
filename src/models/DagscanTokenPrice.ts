@@ -9,7 +9,7 @@ const dagscanTokenPriceSchema = new mongoose.Schema({
   tokenAddress: { type: String, required: true, index: true },
   symbol: { type: String, required: true },
   name: { type: String, required: true },
-  logoURI: { type: String, required: false },
+  logoURI: { type: String, required: true },
   priceUSD: { type: Number, required: true },
   timestamp: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now },
