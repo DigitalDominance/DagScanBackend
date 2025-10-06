@@ -57,38 +57,37 @@ class ZealousSwapService {
     const timestamp = new Date()
 
     /*
-     * Some tokens returned by the Zealous API may be missing optional fields
-     * such as price, logoURI or rank. Mongoose will throw validation errors
-     * if required fields are undefined. To make the importer more resilient,
-     * ensure that all required fields have sensible defaults before writing
-     * to the database. Tokens without a price are skipped entirely, as a
-     * missing price makes little sense in the context of a price history
-     * document. Tokens with missing decimals, name or symbol will also be
-     * ignored rather than causing the entire sync to fail.
+     * Only persist VERIFIED tokens. Unverified tokens are skipped entirely
+     * (no metadata, no price history).
      */
     for (const rawToken of tokensData.tokens) {
       try {
         // Normalise and validate essential fields
-        const address = typeof rawToken.address === 'string' ? rawToken.address.toLowerCase() : null
+        const address  = typeof rawToken.address  === 'string' ? rawToken.address.toLowerCase() : null
         const decimals = typeof rawToken.decimals === 'number' ? rawToken.decimals : null
-        const name = typeof rawToken.name === 'string' ? rawToken.name : null
-        const symbol = typeof rawToken.symbol === 'string' ? rawToken.symbol : null
+        const name     = typeof rawToken.name     === 'string' ? rawToken.name : null
+        const symbol   = typeof rawToken.symbol   === 'string' ? rawToken.symbol : null
         // Price may legitimately be 0, so only treat undefined/null as missing
-        const price = rawToken.price !== undefined && rawToken.price !== null ? Number(rawToken.price) : null
-        const rank = typeof rawToken.rank === 'number' ? rawToken.rank : null
+        const price    = rawToken.price !== undefined && rawToken.price !== null ? Number(rawToken.price) : null
+        const rank     = typeof rawToken.rank     === 'number' ? rawToken.rank : null
         // logoURI may be empty string; that's acceptable. default to empty string if missing
-        const logoURI = typeof rawToken.logoURI === 'string' ? rawToken.logoURI : ''
-        const verified = Boolean(rawToken.verified)
+        const logoURI  = typeof rawToken.logoURI  === 'string' ? rawToken.logoURI : ''
+        const verified = rawToken.verified === true
 
+        // Skip invalid token definitions
         if (!address || decimals === null || !name || !symbol) {
-          // Skip invalid token definitions
           console.warn(`Skipping token with missing required fields: ${JSON.stringify(rawToken)}`)
           continue
         }
 
-        // Upsert basic token metadata. Even if price is missing we still
-        // maintain a record in DagscanToken so pools referencing it can be
-        // persisted.
+        // 🚫 Skip anything not verified
+        if (!verified) {
+          // Optional: uncomment to log once in a while
+          // console.info(`Skipping UNVERIFIED token ${symbol} (${address})`)
+          continue
+        }
+
+        // Upsert basic token metadata (verified only)
         await DagscanToken.findOneAndUpdate(
           { address },
           {
@@ -97,7 +96,7 @@ class ZealousSwapService {
             name,
             symbol,
             logoURI,
-            verified,
+            verified: true,
             // if rank is missing set it to a high number to push it down the list
             rank: rank !== null ? rank : 1e9,
             updatedAt: timestamp,
@@ -125,7 +124,7 @@ class ZealousSwapService {
               name,
               logoURI,
               priceUSD: price,
-              verified,
+              verified: true,
               rank: rank !== null ? rank : 1e9,
               decimals,
               timestamp: timestamp,
@@ -146,15 +145,11 @@ class ZealousSwapService {
       throw new Error('Malformed response from Zealous pools API')
     }
 
-    // Build a set of tracked token addresses. If there are no tokens yet, an
-    // empty set will be used. This ensures that pool snapshots can still be
-    // recorded for tracked tokens without aborting due to undefined results.
-    const trackedTokens = await DagscanToken.find({}, { address: 1 }).lean()
+    // Track ONLY verified tokens
+    const trackedTokens = await DagscanToken.find({ verified: true }, { address: 1 }).lean()
     const trackedAddresses = new Set(trackedTokens.map((t) => String(t.address).toLowerCase()))
 
-    // Persist protocol snapshot (TVL, volume, poolCount, updatedAt). Use
-    // sensible defaults and type coercions to avoid validation errors if the
-    // API returns unexpected values.
+    // Persist protocol snapshot (TVL, volume, poolCount, updatedAt)
     const protocol = poolsData.protocol || {}
     const protocolStat = new DagscanProtocolStat({
       totalTVL: Number(protocol.totalTVL ?? 0),
@@ -162,13 +157,11 @@ class ZealousSwapService {
       poolCount: Number(protocol.poolCount ?? 0),
       updatedAt: protocol.updatedAt ? new Date(protocol.updatedAt) : new Date(),
     })
-        await protocolStat.save().catch((err: unknown) => {
+    await protocolStat.save().catch((err: unknown) => {
       console.error('Failed to save protocol stats:', err)
     })
 
-    // Process individual pools. Only persist pools that involve at least one
-    // tracked token. Coerce numeric fields into numbers and provide
-    // fallbacks for missing values to satisfy the DagscanPoolLatest schema.
+    // Process individual pools: only persist pools that include at least 1 verified token
     const poolEntries = Object.entries(poolsData.pools || {})
     for (const [, pool] of poolEntries) {
       try {
@@ -176,13 +169,12 @@ class ZealousSwapService {
         const token1 = (pool as any).token1 || {}
         const token0Address = String(token0.address || '').toLowerCase()
         const token1Address = String(token1.address || '').toLowerCase()
+
         if (!trackedAddresses.has(token0Address) && !trackedAddresses.has(token1Address)) {
+          // Both sides unverified → skip pool entirely
           continue
         }
-        // Construct a plain object containing all the fields expected by the
-        // DagscanPoolLatest schema. Fields that may be returned as strings
-        // or undefined are coerced into numbers, or given a default value
-        // where appropriate.
+
         const poolPayload: any = {
           address: (pool as any).address,
           token0: {
@@ -244,7 +236,7 @@ class ZealousSwapService {
       console.log("Starting Zealous sync...")
       const tokensData = await this.fetchTokensData()
       await this.persistTokensData(tokensData)
-      console.log(`Synced ${tokensData.tokens.length} tokens`)
+      console.log(`Synced verified tokens only`)
 
       const poolsData = await this.fetchPoolsData()
       await this.persistPoolsData(poolsData)
