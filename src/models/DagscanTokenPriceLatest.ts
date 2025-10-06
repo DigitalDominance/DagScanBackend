@@ -9,7 +9,7 @@ const dagscanTokenPriceLatestSchema = new mongoose.Schema({
   tokenAddress: { type: String, required: true, unique: true, index: true },
   symbol: { type: String, required: true },
   name: { type: String, required: true },
-  logoURI: { type: String, required: true },
+  logoURI: { type: String, required: false },
   priceUSD: { type: Number, required: true },
   verified: { type: Boolean, default: false },
   rank: { type: Number, required: true },
